@@ -8,6 +8,7 @@ set -ex
 rm -rf build
 mkdir build
 cd build
+yum install -y glibc-static
 
 : ${PY:=/opt/python/cp36-cp36m/bin}
 
