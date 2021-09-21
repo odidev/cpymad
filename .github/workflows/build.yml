@@ -54,6 +54,64 @@ jobs:
           name: dist-linux
           path: dist
 
+  build_linux_aarch64:
+    name: "Build:Linux AArch64"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v1      
+      - run: echo "MADX_VERSION=$(cat MADX_VERSION)" >> $GITHUB_ENV
+
+      - name: Download cached MAD-X build
+        id: madx-build-cache
+        # Do NOT use cache@v2, it can't handle relative paths with '..' nor
+        # absolute paths on windows!
+        uses: actions/cache@v1
+        with:
+          path: ../MAD-X/dist
+          key: "\
+            madx-${{ env.MADX_VERSION }}-\
+            linux-\
+            patches-${{ hashFiles('.github/patch/*') }}-\
+            scripts-${{ hashFiles('.github/build/manylinux1/madx*') }}\
+          "
+      - name: Prepare MAD-X source
+        if: steps.madx-build-cache.outputs.cache-hit != 'true'
+        uses: ./.github/checkout-madx
+        with:
+          madx_version: ${{ env.MADX_VERSION }}
+
+      - name: Build MAD-X and cpymad
+        if: steps.madx-build-cache.outputs.cache-hit != 'true'
+        run: |
+          docker run --rm --init \
+            -w /mnt/MAD-X \
+            -v `pwd`/..:/mnt \
+            quay.io/pypa/manylinux2014_aarch64 \
+            bash -exc 'pwd && \
+            ../cpymad/.github/build/manylinux1/madx.sh
+            cd /mnt/cpymad && \
+            .github/build/manylinux1/cpymad.sh'
+
+      - name: Build cpymad
+        if: steps.madx-build-cache.outputs.cache-hit == 'true'
+        run: |
+          docker run --rm --init \
+            -w /mnt/MAD-X \
+            -v `pwd`/..:/mnt \
+            quay.io/pypa/manylinux2014_aarch64 \
+            bash -exc 'pwd && \
+            cd /mnt/cpymad && \
+            .github/build/manylinux1/cpymad.sh'
+
+      - name: Upload cpymad wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist-linux
+          path: dist
+  
   build_windows:
     name: "Build: Windows"
     runs-on: windows-latest
